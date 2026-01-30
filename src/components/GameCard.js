@@ -19,7 +19,7 @@ export default function GameCard({ level, onAnswer }) {
                         initial={{ y: -20, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         transition={{ delay: index * 0.1 }}
-                        className="p-4 bg-gray-100 rounded-xl"
+                        className="p-4 bg-gray-100 rounded-xl text-gray-900 font-bold"
                     >
                         {item}
                     </motion.div>
@@ -36,7 +36,7 @@ export default function GameCard({ level, onAnswer }) {
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={() => onAnswer(option)}
-                        className="bg-blue-100 hover:bg-blue-200 text-4xl p-6 rounded-2xl transition-colors border-b-4 border-blue-300 active:border-b-0 active:translate-y-1"
+                        className="bg-blue-100 hover:bg-blue-200 text-4xl p-6 rounded-2xl transition-colors border-b-4 border-blue-300 active:border-b-0 active:translate-y-1 text-blue-950 font-bold"
                     >
                         {option}
                     </motion.button>

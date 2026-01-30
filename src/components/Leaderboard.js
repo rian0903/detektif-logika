@@ -1,34 +1,35 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { database } from '@/lib/firebaseConfig';
+import { ref, query, orderByChild, limitToLast, onValue } from 'firebase/database';
 
 export default function Leaderboard() {
     const [scores, setScores] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetchScores();
-    }, []);
+        const scoresRef = query(ref(database, 'leaderboard'), orderByChild('score'), limitToLast(10));
 
-    const fetchScores = async () => {
-        try {
-            const { data, error } = await supabase
-                .from('leaderboard')
-                .select('*')
-                .order('score', { ascending: false })
-                .limit(10);
-
-            if (error) {
-                console.error('Error fetching leaderboard:', error);
+        // Listen for data changes
+        const unsubscribe = onValue(scoresRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                // Firebase returns objects with keys, convert to array and sort
+                const scoresArray = Object.keys(data).map(key => ({
+                    id: key,
+                    ...data[key]
+                }));
+                // Sort descending locally because limitToLast returns ascending order from Firebase
+                scoresArray.sort((a, b) => b.score - a.score);
+                setScores(scoresArray);
             } else {
-                setScores(data || []);
+                setScores([]);
             }
-        } catch (err) {
-            console.error('Unexpected error:', err);
-        } finally {
             setLoading(false);
-        }
-    };
+        });
+
+        return () => unsubscribe();
+    }, []);
 
     if (loading) return <p className="text-center text-white">Loading Leaderboard...</p>;
 

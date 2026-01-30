@@ -1,18 +1,25 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
-import { levels } from '@/data/levels';
+import { generateLevels } from '@/data/levels';
 import GameCard from '@/components/GameCard';
 import Leaderboard from '@/components/Leaderboard';
-import { supabase } from '@/lib/supabaseClient';
+import { database } from '@/lib/firebaseConfig';
+import { ref, push, serverTimestamp } from 'firebase/database';
 
 export default function GamePola() {
+    const [levels, setLevels] = useState([]);
     const [step, setStep] = useState(0); // 0: Start, 1: Playing, 2: Result
     const [currentLevel, setCurrentLevel] = useState(0);
     const [name, setName] = useState("");
     const [score, setScore] = useState(0);
-    const [showResult, setShowResult] = useState(false);
+
+    const [isWin, setIsWin] = useState(false);
+
+    useEffect(() => {
+        setLevels(generateLevels(100));
+    }, []);
 
     const handleAnswer = (selectedOption) => {
         const correctOption = levels[currentLevel].answer;
@@ -30,39 +37,55 @@ export default function GamePola() {
                 finishGame();
             }
         } else {
-            // Wrong Answer - Shake effect or similar could be added here
-            // For now, just maybe penalty or nothing? Let's just not advance.
-            // Or maybe we verify it's a "try again" scenario.
-            // Let's punish slightly or give feedback.
-            alert("Ups! Coba lagi ya! 😅");
+            // Wrong Answer
+            gameOver();
         }
     };
 
     const finishGame = async () => {
+        setIsWin(true);
         setStep(2);
         const finalScore = score + 100; // Add last level points
-        // Save to Supabase
+        // Save to Firebase
         if (name) {
             await saveScore(name, finalScore);
         }
     };
 
+    const gameOver = async () => {
+        setIsWin(false);
+        setStep(2);
+        // Save to Firebase
+        if (name) {
+            await saveScore(name, score);
+        }
+    }
+
     const saveScore = async (playerName, finalScore) => {
         try {
-            await supabase.from('leaderboard').insert([
-                { name: playerName, score: finalScore }
-            ]);
+            const scoresRef = ref(database, 'leaderboard');
+            await push(scoresRef, {
+                name: playerName,
+                score: finalScore,
+                createdAt: serverTimestamp()
+            });
         } catch (err) {
             console.error("Failed to save score:", err);
         }
     };
 
     const resetGame = () => {
+        setStep(1); // Restart directly to playing or start screen? Let's go to 1 (playing) since name is kept? No, reset often clears name. Let's keep 0.
+        // Actually the original code cleared name.
         setStep(0);
         setCurrentLevel(0);
         setScore(0);
         setName("");
+        setIsWin(false);
+        setLevels(generateLevels(100)); // Regenerate levels on reset for extra randomness!
     };
+
+    if (levels.length === 0) return <div className="min-h-screen flex items-center justify-center bg-blue-500 text-white font-bold text-2xl">Loading...</div>;
 
     // UI Start Screen
     if (step === 0) return (
@@ -102,17 +125,17 @@ export default function GamePola() {
 
     // UI Result Screen
     if (step === 2) return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-green-500 text-white p-4">
+        <div className={`flex flex-col items-center justify-center min-h-screen ${isWin ? 'bg-green-500' : 'bg-red-500'} text-white p-4`}>
             <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 className="text-center mb-8"
             >
-                <h1 className="text-5xl font-black mb-2">SELAMAT! 🎉</h1>
-                <p className="text-2xl">Kamu menyelesaikan semua misi!</p>
-                <div className="mt-6 bg-white text-green-600 px-8 py-4 rounded-2xl inline-block shadow-lg">
+                <h1 className="text-5xl font-black mb-2">{isWin ? 'SELAMAT! 🎉' : 'GAME OVER 💀'}</h1>
+                <p className="text-2xl">{isWin ? 'Kamu menyelesaikan semua misi!' : 'Yah, Jawabanmu Salah! 😢'}</p>
+                <div className={`mt-6 bg-white ${isWin ? 'text-green-600' : 'text-red-600'} px-8 py-4 rounded-2xl inline-block shadow-lg`}>
                     <p className="text-sm font-bold uppercase tracking-wider">Skor Akhir</p>
-                    <p className="text-6xl font-black">{score + 100}</p>
+                    <p className="text-6xl font-black">{isWin ? score + 100 : score}</p>
                 </div>
             </motion.div>
 
@@ -122,7 +145,7 @@ export default function GamePola() {
 
             <button
                 onClick={resetGame}
-                className="bg-white text-green-600 font-bold px-8 py-3 rounded-full shadow-lg hover:bg-gray-100 transition-colors"
+                className={`bg-white ${isWin ? 'text-green-600' : 'text-red-600'} font-bold px-8 py-3 rounded-full shadow-lg hover:bg-gray-100 transition-colors`}
             >
                 Main Lagi 🔄
             </button>
@@ -140,7 +163,7 @@ export default function GamePola() {
 
             <div className="relative z-10 w-full flex flex-col items-center">
                 <div className="mb-8 flex items-center gap-4">
-                    <div className="bg-white px-6 py-2 rounded-full shadow-md font-bold text-gray-600">
+                    <div className="bg-white px-6 py-2 rounded-full shadow-md font-bold text-gray-900">
                         Level {currentLevel + 1} / {levels.length}
                     </div>
                     <div className="bg-blue-500 text-white px-6 py-2 rounded-full shadow-md font-bold">
